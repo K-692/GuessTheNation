@@ -2,6 +2,8 @@ import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "./store";
 import firebase from "firebase";
 
+import { saveLeaderboardEntry } from "../utils/leaderboard";
+
 interface UserState {
   username: string;
   uid: string;
@@ -17,20 +19,40 @@ const initialState: UserState = {
 
 export const setNewHighScoreThunk = createAsyncThunk(
   "user/newHighScore",
-  async ({ newHighScore, id }: { newHighScore: number; id: string }) => {
-    const db = firebase.firestore();
-    const users = db.collection("users");
-    const sfDocRef = users.doc(id);
-
+  async ({
+    newHighScore,
+    id,
+    username,
+  }: {
+    newHighScore: number;
+    id: string;
+    username?: string;
+  }) => {
+    // Persist to local storage and update real gameplay leaderboard
     try {
-      await db.runTransaction(async (transaction) => {
-        return await transaction.update(sfDocRef, { highScore: newHighScore });
-      });
-
-      return newHighScore;
-    } catch (e) {
-      console.log("Transaction failed: ", e);
+      localStorage.setItem("mapi_high_score", newHighScore.toString());
+      if (username) {
+        saveLeaderboardEntry(username, newHighScore);
+      }
+    } catch (err) {
+      console.warn("Error persisting high score to localStorage:", err);
     }
+
+    if (id && !id.startsWith("local-")) {
+      try {
+        const db = firebase.firestore();
+        const users = db.collection("users");
+        const sfDocRef = users.doc(id);
+
+        await db.runTransaction(async (transaction) => {
+          return await transaction.update(sfDocRef, { highScore: newHighScore });
+        });
+      } catch (e) {
+        console.warn("Firestore high score update skipped/failed: ", e);
+      }
+    }
+
+    return newHighScore;
   }
 );
 

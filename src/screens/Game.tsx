@@ -33,7 +33,7 @@ const ScoreBoard: React.FC<{ username: string; score: number }> = ({
   // const expiryTimestamp = useMemo(() =>  , [])
 
   const { seconds, minutes, pause, resume, isRunning, restart } = useTimer({
-    expiryTimestamp: new Date().getTime() + 300_000,
+    expiryTimestamp: new Date().getTime() + 120_000,
     onExpire: () => {
       dispatch(timeExpire(null));
     },
@@ -41,7 +41,7 @@ const ScoreBoard: React.FC<{ username: string; score: number }> = ({
 
   useEffect(() => {
     const listener = () => {
-      restart(new Date().getTime() + 300_000); 
+      restart(new Date().getTime() + 120_000); 
     };
 
     document.addEventListener(RESTART_TIMER, listener);
@@ -53,9 +53,12 @@ const ScoreBoard: React.FC<{ username: string; score: number }> = ({
   } else if (!isPause && !isRunning) {
     resume();
   }
-  if(score > highScore) {
-    dispatch(setNewHighScoreThunk({newHighScore: score, id: userUid}))
-  }
+
+  useEffect(() => {
+    if (score > 0 && score > highScore && username) {
+      dispatch(setNewHighScoreThunk({ newHighScore: score, id: userUid, username }));
+    }
+  }, [score, highScore, userUid, username, dispatch]);
 
   return (
     <>
@@ -92,9 +95,6 @@ const ScoreBoard: React.FC<{ username: string; score: number }> = ({
         </button>
       </div>
       <div className="title z1"> {APP_NAME} </div>
-      <div className="logo z1">
-        <img src={`${process.env.PUBLIC_URL}/assets/jis.png`} alt="" />
-      </div>
     </>
   );
 };
@@ -106,6 +106,14 @@ const GameOverOverLay = () => {
   const history = useHistory();
 
   const score = useAppSelector(getScore);
+  const username = useAppSelector(getUsername);
+  const userUid = useAppSelector(getUserUid);
+
+  useEffect(() => {
+    if (timeUp && score > 0 && username) {
+      dispatch(setNewHighScoreThunk({ newHighScore: score, id: userUid, username }));
+    }
+  }, [timeUp, score, username, userUid, dispatch]);
 
   return (
     <div className={`game-over ${timeUp ? "show" : "hide"}`}>

@@ -17,17 +17,34 @@ export const NameRegister = () => {
     history.push("/play");
   }
   const onPlay = async () => {
-    if (usernameInputVal !== "") {
+    const trimmed = usernameInputVal.trim();
+    if (!trimmed && !username) {
+      setError("Please enter your name");
+      return;
+    }
+    setError("");
+
+    if (trimmed !== "") {
       try {
         const users = firebase.firestore().collection("users");
-        const res = await users.add({ username: usernameInputVal, highScore: 0 });
-        dispatch(setUsername({username:usernameInputVal, uid: res.id}));
-        play();
+        const addPromise = users.add({ username: trimmed, highScore: 0 });
+        // 2.5 second timeout so blocked Firestore backend never hangs the user
+        const res = await Promise.race([
+          addPromise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Firestore registration timeout")), 2500)
+          ),
+        ]);
+        dispatch(setUsername({ username: trimmed, uid: res.id }));
       } catch (error) {
-        setError("Try again");
-        console.log({ error });
+        console.warn("Firestore registration failed or offline. Using local session:", error);
+        const localUid = "local-" + Date.now();
+        dispatch(setUsername({ username: trimmed, uid: localUid }));
       }
-    } else if (username !== "") play();
+      play();
+    } else if (username !== "") {
+      play();
+    }
   };
 
   return (
@@ -57,8 +74,7 @@ export const NameRegister = () => {
         )}
         {/* <input type="submit" name="summit" value="START" id="submit" /> */}
         <button type="submit">
-          {" "}
-          <img src={`${process.env.PUBLIC_URL}/assets/start.png`} alt="" />{" "}
+          <img src={`${process.env.PUBLIC_URL}/assets/start.png`} alt="START" />
         </button>
       </form>
     </div>

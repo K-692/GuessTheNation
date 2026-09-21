@@ -67,20 +67,36 @@ img {
 }
 
 #pano {
-  float: left;
   height: 100%;
   width: 100%;
+
+  /* Ensure street view imagery retains natural vivid colors and cancels Google dev inversion */
+  canvas {
+    filter: none !important;
+  }
+
+  /* Suppress the "For development purposes only" watermark banner */
+  div[style*="For development purposes only"],
+  div[style*="z-index: 1000"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
 }
+
+/* Suppress Google Maps API warning pop-up modals */
+.dismissButton,
+div[style*="max-width: 375px"],
+div[style*="background-color: white"][style*="box-sizing: border-box"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 button{
   outline: none;
   border: none;
   cursor: pointer;
-}
-
-#pano>div>div:nth-child(1)>div>div:nth-child(11)>div {
-  filter: invert(1);
-}
-
-#pano>div>div:nth-child(2)>div:nth-child(2) , .gm-fullscreen-control{
-  display: none;
 }

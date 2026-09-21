@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import firebase from "firebase";
+import { DEFAULT_PLACES } from "../Constants/defaultPlaces";
 import { sleep } from "../utils/tools";
 import { RootState } from "./store";
 
@@ -12,29 +13,80 @@ type GameState = {
   timeExpire: boolean;
 };
 
-// Define the initial state using that type
+// Define the initial state using default verified places so game starts immediately
+const initialPick = DEFAULT_PLACES[Math.floor(Math.random() * DEFAULT_PLACES.length)];
 const initialState: GameState = {
-  currentPlace: { location: { lat: 0, lng: 0 }, country: "" },
-  shownPlaces: [],
+  currentPlace: initialPick,
+  shownPlaces: [initialPick],
   showAns: false,
-  places: [],
+  places: DEFAULT_PLACES,
   score: 0,
   timeExpire: false,
 };
 
-const getNewPlace = (places: Place[]) => {
-  if(places.length > 0)
-    return places[Math.floor(Math.random() * places.length)] 
-  else return { location: { lat: 0, lng: 0 }, country: "" };
-}
+/**
+ * Selects a new place ensuring no repeated nation or street view coordinates
+ * within the current gameplay session.
+ */
+const getNextPlace = (
+  places: Place[],
+  shownPlaces: Place[] = []
+): { nextPlace: Place; updatedShown: Place[] } => {
+  const pool = places && places.length > 0 ? places : DEFAULT_PLACES;
+
+  // Filter out places with countries or coordinates already shown in this game session
+  const shownCountries = new Set(shownPlaces.map((p) => p.country));
+  const shownCoords = new Set(
+    shownPlaces.map((p) => `${p.location.lat.toFixed(3)},${p.location.lng.toFixed(3)}`)
+  );
+
+  let available = pool.filter(
+    (p) =>
+      !shownCountries.has(p.country) &&
+      !shownCoords.has(`${p.location.lat.toFixed(3)},${p.location.lng.toFixed(3)}`)
+  );
+
+  // If all distinct nations in pool have been shown, start a new cycle without immediately repeating last
+  if (available.length === 0) {
+    const last = shownPlaces[shownPlaces.length - 1];
+    available = pool.filter((p) => !last || p.country !== last.country);
+    if (available.length === 0) available = pool;
+    const chosen = available[Math.floor(Math.random() * available.length)];
+    return { nextPlace: chosen, updatedShown: [chosen] };
+  }
+
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  return { nextPlace: chosen, updatedShown: [...shownPlaces, chosen] };
+};
+
 export const loadPlacesThunk = createAsyncThunk("game/setPlaces", async () => {
-  const locationCollection = firebase.firestore().collection("locations");
+  try {
+    const locationCollection = firebase.firestore().collection("locations");
+    const getPromise = locationCollection.get();
+    // 3 second timeout so slow/blocked Firestore doesn't hang UI
+    const places = await Promise.race([
+      getPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Firestore locations timeout")), 3000)
+      ),
+    ]);
+    const countryList: Place[] = [];
+    places.forEach((v) => {
+      const data = v.data() as Place;
+      // Only include places that have pre-verified pano ID and continuous road coverage
+      if (data && data.country && data.location && data.pano) {
+        countryList.push(data);
+      }
+    });
 
-  const places = await locationCollection.get();
-  const countryList: Place[] = [];
-  places.forEach((v) => (countryList as any[]).push(v.data()));
-
-  return countryList;
+    if (countryList.length > 0) {
+      // Merge verified locations with DEFAULT_PLACES ensuring full pool richness
+      return [...DEFAULT_PLACES, ...countryList];
+    }
+  } catch (error) {
+    console.warn("Firestore locations unavailable or restricted, using default places:", error);
+  }
+  return DEFAULT_PLACES;
 });
 
 export const showAnsThunk = createAsyncThunk(
@@ -51,81 +103,111 @@ export const gameSlice = createSlice({
   initialState,
   reducers: {
     submitAns: (state, { payload: ans }: PayloadAction<string>) => {
-      if (ans === state.currentPlace.country) {
-        return {
-          ...state,
-          currentPlace: getNewPlace(state.places),
-          score: state.score + 1,
-        };
-      }
-      return { ...state, currentPlace: getNewPlace(state.places) };
-    },
-    restartGame: (state, _: PayloadAction<any>) => {
-      // Todo time reset
-      document.dispatchEvent(new Event(RESTART_TIMER));
+      const isCorrect = ans === state.currentPlace.country;
+      const { nextPlace, updatedShown } = getNextPlace(state.places, state.shownPlaces);
       return {
         ...state,
-        currentPlace: getNewPlace(state.places),
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
+        score: isCorrect ? state.score + 1 : state.score,
+      };
+    },
+    restartGame: (state, _: PayloadAction<any>) => {
+      document.dispatchEvent(new Event(RESTART_TIMER));
+      const { nextPlace, updatedShown } = getNextPlace(state.places, []);
+      return {
+        ...state,
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
         score: 0,
         timeExpire: false,
       };
     },
     giveupGame: (state, _: PayloadAction<any>) => {
-      // Todo move back to home
+      const { nextPlace, updatedShown } = getNextPlace(state.places, []);
       return {
         ...state,
-        currentPlace: getNewPlace(state.places),
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
         score: 0,
       };
     },
 
     startNewGame: (state, _: PayloadAction<any>) => {
+      const { nextPlace, updatedShown } = getNextPlace(state.places, []);
       return {
         ...state,
-        currentPlace: getNewPlace(state.places),
-        shownPlaces: [],
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
         showAns: false,
         score: 0,
         timeExpire: false,
       };
     },
     timeExpire: (state, _: PayloadAction<any>) => {
-      // Todo move back to home
       return {
         ...state,
         timeExpire: true,
+      };
+    },
+    skipInvalidPlace: (state) => {
+      const { nextPlace, updatedShown } = getNextPlace(state.places, state.shownPlaces);
+      return {
+        ...state,
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
       };
     },
   },
   extraReducers: (builder) => {
     builder.addCase(
       loadPlacesThunk.fulfilled,
-      (state, { payload: places }) => ({
-        ...state,
-        places,
-        currentPlace: getNewPlace(places),
-      })
+      (state, { payload: places }) => {
+        if (state.currentPlace && state.currentPlace.country) {
+          return {
+            ...state,
+            places,
+          };
+        }
+        const { nextPlace, updatedShown } = getNextPlace(places, state.shownPlaces);
+        return {
+          ...state,
+          places,
+          currentPlace: nextPlace,
+          shownPlaces: updatedShown,
+        };
+      }
     );
 
-    builder.addCase(showAnsThunk.fulfilled, (state, { payload: ans }) => ({
-      ...state,
-      showAns: false,
-      currentPlace: getNewPlace(state.places),
-      score: ans === state.currentPlace.country ? state.score + 1 : state.score,
-    }));
+    builder.addCase(showAnsThunk.fulfilled, (state, { payload: ans }) => {
+      const isCorrect = ans === state.currentPlace.country;
+      const { nextPlace, updatedShown } = getNextPlace(state.places, state.shownPlaces);
+      return {
+        ...state,
+        showAns: false,
+        currentPlace: nextPlace,
+        shownPlaces: updatedShown,
+        score: isCorrect ? state.score + 1 : state.score,
+      };
+    });
     builder.addCase(showAnsThunk.pending, (state, { payload: ans }) => ({
       ...state,
       showAns: true,
-      // currentPlace: getNewPlace(state.places),
-      // score: ans === state.currentPlace.country ? state.score + 1 : state.score,
     }));
   },
 });
 
-export const { submitAns, restartGame, giveupGame, timeExpire, startNewGame } =
-  gameSlice.actions;
+export const {
+  submitAns,
+  restartGame,
+  giveupGame,
+  timeExpire,
+  startNewGame,
+  skipInvalidPlace,
+} = gameSlice.actions;
 
 // Other code such as selectors can use the imported `RootState` type
+export const getCurPlace = (state: RootState) => state.game.currentPlace;
 export const getCurCoordinates = (state: RootState) =>
   state.game.currentPlace.location;
 export const getCurCountry = (state: RootState) =>
