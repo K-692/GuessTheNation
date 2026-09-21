@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import firebase from "firebase";
 import { DEFAULT_PLACES } from "../Constants/defaultPlaces";
+import { getStoredCustomLocations } from "../utils/customLocations";
 import { sleep } from "../utils/tools";
 import { RootState } from "./store";
 
@@ -61,30 +61,12 @@ const getNextPlace = (
 
 export const loadPlacesThunk = createAsyncThunk("game/setPlaces", async () => {
   try {
-    const locationCollection = firebase.firestore().collection("locations");
-    const getPromise = locationCollection.get();
-    // 3 second timeout so slow/blocked Firestore doesn't hang UI
-    const places = await Promise.race([
-      getPromise,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Firestore locations timeout")), 3000)
-      ),
-    ]);
-    const countryList: Place[] = [];
-    places.forEach((v) => {
-      const data = v.data() as Place;
-      // Only include places that have pre-verified pano ID and continuous road coverage
-      if (data && data.country && data.location && data.pano) {
-        countryList.push(data);
-      }
-    });
-
-    if (countryList.length > 0) {
-      // Merge verified locations with DEFAULT_PLACES ensuring full pool richness
-      return [...DEFAULT_PLACES, ...countryList];
+    const custom = getStoredCustomLocations().map(([place]) => place);
+    if (custom.length > 0) {
+      return [...DEFAULT_PLACES, ...custom];
     }
   } catch (error) {
-    console.warn("Firestore locations unavailable or restricted, using default places:", error);
+    console.warn("Failed to load local custom places:", error);
   }
   return DEFAULT_PLACES;
 });

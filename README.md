@@ -4,6 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-4.1.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Redux Toolkit](https://img.shields.io/badge/Redux_Toolkit-1.6.1-764ABC?logo=redux&logoColor=white)](https://redux-toolkit.js.org/)
 [![Google Maps API](https://img.shields.io/badge/Google_Maps_API-Street_View-4285F4?logo=google-maps&logoColor=white)](https://developers.google.com/maps/documentation/javascript)
+[![Architecture: 100% Client-Side](https://img.shields.io/badge/Architecture-100%25_Client--Side-brightgreen.svg)](#-architecture--local-storage)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 An interactive, web-based 360° Google Street View geography guessing game. Test your worldly knowledge by exploring authentic streets around the globe, looking for architectural cues, road signs, and landscapes to guess the correct nation within a 2-minute countdown.
@@ -16,7 +17,8 @@ An interactive, web-based 360° Google Street View geography guessing game. Test
 - **🛡️ Zero Black Screens**: Custom filtering rejects broken, unlinked, or private third-party user photospheres (`links.length > 0` and Google copyright verification).
 - **🕹️ 360° Interactive Roaming**: Full mouse pan/tilt, zoom controls, and keyboard navigation (`ArrowUp` / `ArrowDown` / `ArrowLeft` / `ArrowRight`) to roam along streets.
 - **⏱️ 2-Minute Speed Run**: Fast-paced countdown timer challenging players to identify as many countries as possible.
-- **🏆 Persistent Leaderboard**: Automatically tracks and ranks personal best scores by username across sessions with real-time state synchronization.
+- **🏆 System-Specific Leaderboard**: 100% client-side leaderboard that automatically tracks, ranks, and persists personal best scores by username across sessions using reactive browser storage.
+- **⚡ 100% Serverless & Offline-Resilient**: Zero external database dependencies; lightning-fast instant startup with no backend cold starts or authentication barriers.
 - **🎯 Dynamic Quiz Engine**: Shuffles 4 unique country options per round with duplicate nation prevention during each gameplay cycle.
 - **🪵 Rich Themed UI**: Wooden-styled controls, transparent action buttons, centered title HUD, and responsive viewport sizing.
 
@@ -31,7 +33,7 @@ An interactive, web-based 360° Google Street View geography guessing game. Test
 | **Redux Toolkit** | Centralized game state, timer triggers, and score tracking |
 | **Google Maps JS API** | Street View Panorama service & 360° WebGL rendering |
 | **Dart Sass (`sass`)** | SCSS stylesheet compilation |
-| **Firebase** | Firestore & Realtime Database integration with local session fallbacks |
+| **Web Storage API** | Reactive, system-specific local persistence for player rankings and custom locations |
 
 ---
 
@@ -58,24 +60,19 @@ Ensure you have the following installed on your system:
 
 ### Environment Configuration
 
-The application includes sensible built-in fallback keys, but you can configure your own Google Maps API and Firebase credentials for production deployments.
+The application includes sensible built-in fallback keys, but you can configure your own Google Maps API key for production deployments.
 
 1. Copy the example environment template:
    ```bash
    cp .env.example .env
    ```
 
-2. Edit `.env` with your custom API credentials:
+2. Edit `.env` with your custom Google Maps JavaScript API key:
    ```env
-   # Google Maps JavaScript API key with Street View enabled
    REACT_APP_GOOGLE_MAPS_KEY=your_google_maps_api_key_here
-
-   # Firebase project credentials (optional)
-   REACT_APP_FIREBASE_API_KEY=your_firebase_api_key_here
-   REACT_APP_FIREBASE_PROJECT_ID=your_project_id
    ```
 
-> **Note**: `.env` is ignored by `.gitignore` to protect sensitive credentials from being committed.
+> **Note**: `.env` is ignored by `.gitignore` to protect sensitive keys from being committed.
 
 ### Development Server
 
@@ -91,7 +88,7 @@ Create an optimized production bundle:
 ```bash
 yarn build
 ```
-The compiled output will be generated in the `build/` directory ready for deployment to Firebase Hosting, Vercel, or Netlify.
+The compiled output will be generated in the `build/` directory ready for deployment to any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages, or AWS S3).
 
 ---
 
@@ -104,12 +101,13 @@ GuessTheNation/
 ├── src/
 │   ├── components/             # Reusable UI components
 │   │   ├── GameOptions.tsx     # 4-button country guess options
-│   │   ├── Leadboad.tsx        # Persistent dynamic leaderboard
-│   │   ├── NameRegister.tsx    # Player registration input & start action
+│   │   ├── Leadboad.tsx        # System-specific dynamic leaderboard
+│   │   ├── NameRegister.tsx    # Instant player registration & start action
 │   │   └── StreetViewer.tsx    # Google Street View WebGL panorama viewer
 │   ├── screens/                # Application page views
 │   │   ├── Home.tsx            # Main landing screen (Title + Leaderboard)
-│   │   └── Game.tsx            # Gameplay screen (Timer + HUD + Street View)
+│   │   ├── Game.tsx            # Gameplay screen (Timer + HUD + Street View)
+│   │   └── AddLocations.tsx    # Custom location management interface
 │   ├── Constants/
 │   │   └── defaultPlaces.ts    # Verified 36-nation Street View dataset
 │   ├── gapi/
@@ -119,7 +117,8 @@ GuessTheNation/
 │   │   ├── UserReducers.ts     # Player username and high score management
 │   │   └── store.ts            # Root Redux store configuration
 │   ├── utils/
-│   │   └── leaderboard.ts      # Persistent local & online leaderboard manager
+│   │   ├── customLocations.ts  # Local custom locations manager
+│   │   └── leaderboard.ts      # Reactive system-specific leaderboard manager
 │   ├── App.tsx                 # Root router & layout
 │   └── index.tsx               # Application entry point
 ├── .env.example                # Documented environment variables template
@@ -134,7 +133,7 @@ GuessTheNation/
 1. **Enter Your Name**: Type your nickname on the home screen and click the **START** button.
 2. **Explore the Street View**: Use click-and-drag or keyboard arrow keys (`ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`) to roam around and look for clues (signs, landscape, language, flags, architecture).
 3. **Make Your Guess**: Click one of the four country buttons at the bottom of the screen.
-4. **Climb the Leaderboard**: Score as many correct guesses as possible before the 2-minute timer runs out. Your personal best is automatically recorded on the leaderboard.
+4. **Climb the Leaderboard**: Score as many correct guesses as possible before the 2-minute timer runs out. Your personal best is automatically recorded on your system's leaderboard.
 
 ---
 

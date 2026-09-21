@@ -1,7 +1,5 @@
 import React, { FC, useEffect, useMemo, useState } from "react";
 import "./leadboad.scss";
-import { useCollectionData } from "react-firebase-hooks/firestore";
-import firebase from "firebase";
 import { LeaderboardEntry } from "../Constants/defaultPlaces";
 import { useAppSelector } from "../hooks/redux";
 import { getHighScore, getUsername } from "../store/UserReducers";
@@ -41,37 +39,18 @@ export const Leadboad = () => {
     };
   }, []);
 
-  // Optional Firestore snapshot listener (for online synchronized scores)
-  const [snapshot] = useCollectionData<LeaderboardEntry>(
-    firebase
-      .firestore()
-      .collection("users")
-      .where("highScore", ">", 0)
-      .orderBy("highScore", "desc")
-      .limit(10)
-  );
-
   const entries = useMemo(() => {
-    // Merge Firestore snapshot, local storage entries, and current active session
+    // Merge locally stored gameplay entries with active player session
     const map = new Map<string, number>();
 
-    // 1. Add Firestore entries if available
-    if (snapshot && snapshot.length > 0) {
-      snapshot.forEach((e) => {
-        if (e && e.username && typeof e.highScore === "number") {
-          map.set(e.username.toLowerCase(), e.highScore);
-        }
-      });
-    }
-
-    // 2. Add locally stored gameplay entries
+    // 1. Add locally stored gameplay entries
     localEntries.forEach((e) => {
       const key = e.username.toLowerCase();
       const existing = map.get(key) || 0;
       map.set(key, Math.max(existing, e.highScore));
     });
 
-    // 3. Add active user's current score if > 0
+    // 2. Add active user's current score if > 0
     if (currentUsername && currentHighScore > 0) {
       const key = currentUsername.toLowerCase();
       const existing = map.get(key) || 0;
@@ -81,7 +60,6 @@ export const Leadboad = () => {
     // Convert map to sorted LeaderboardEntry list
     const combined: LeaderboardEntry[] = [];
     map.forEach((score, lowerName) => {
-      // Find original display casing from localEntries or currentUsername
       const original =
         localEntries.find((l) => l.username.toLowerCase() === lowerName)?.username ||
         (currentUsername && currentUsername.toLowerCase() === lowerName ? currentUsername : lowerName);
@@ -90,7 +68,7 @@ export const Leadboad = () => {
 
     combined.sort((a, b) => b.highScore - a.highScore);
     return combined.slice(0, 4);
-  }, [snapshot, localEntries, currentUsername, currentHighScore]);
+  }, [localEntries, currentUsername, currentHighScore]);
 
   return (
     <div id="leadboad">

@@ -1,7 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "./store";
-import firebase from "firebase";
-
 import { saveLeaderboardEntry } from "../utils/leaderboard";
 
 interface UserState {
@@ -21,11 +19,10 @@ export const setNewHighScoreThunk = createAsyncThunk(
   "user/newHighScore",
   async ({
     newHighScore,
-    id,
     username,
   }: {
     newHighScore: number;
-    id: string;
+    id?: string;
     username?: string;
   }) => {
     // Persist to local storage and update real gameplay leaderboard
@@ -38,27 +35,12 @@ export const setNewHighScoreThunk = createAsyncThunk(
       console.warn("Error persisting high score to localStorage:", err);
     }
 
-    if (id && !id.startsWith("local-")) {
-      try {
-        const db = firebase.firestore();
-        const users = db.collection("users");
-        const sfDocRef = users.doc(id);
-
-        await db.runTransaction(async (transaction) => {
-          return await transaction.update(sfDocRef, { highScore: newHighScore });
-        });
-      } catch (e) {
-        console.warn("Firestore high score update skipped/failed: ", e);
-      }
-    }
-
     return newHighScore;
   }
 );
 
 export const usersSlice = createSlice({
   name: "users",
-  // `createSlice` will infer the state type from the `initialState` argument
   initialState,
   reducers: {
     setUsername: (
@@ -83,7 +65,7 @@ export const usersSlice = createSlice({
 });
 
 export const { setUsername } = usersSlice.actions;
-// Other code such as selectors can use the imported `RootState` type
+// Selectors
 export const getUsername = (state: RootState) => state.users.username;
 export const getUserUid = (state: RootState) => state.users.uid;
 export const getHighScore = (state: RootState) => state.users.highScore;
