@@ -1,8 +1,6 @@
-import React, { FC, useEffect, useMemo, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import "./leadboad.scss";
 import { LeaderboardEntry } from "../Constants/defaultPlaces";
-import { useAppSelector } from "../hooks/redux";
-import { getHighScore, getUsername } from "../store/UserReducers";
 import {
   getStoredLeaderboard,
   LEADERBOARD_UPDATED_EVENT,
@@ -18,8 +16,6 @@ const LeadboadEntry: FC<{ v: LeaderboardEntry }> = ({ v }) => {
 };
 
 export const Leadboad = () => {
-  const currentUsername = useAppSelector(getUsername);
-  const currentHighScore = useAppSelector(getHighScore);
   const [localEntries, setLocalEntries] = useState<LeaderboardEntry[]>(() =>
     getStoredLeaderboard()
   );
@@ -39,36 +35,7 @@ export const Leadboad = () => {
     };
   }, []);
 
-  const entries = useMemo(() => {
-    // Merge locally stored gameplay entries with active player session
-    const map = new Map<string, number>();
-
-    // 1. Add locally stored gameplay entries
-    localEntries.forEach((e) => {
-      const key = e.username.toLowerCase();
-      const existing = map.get(key) || 0;
-      map.set(key, Math.max(existing, e.highScore));
-    });
-
-    // 2. Add active user's current score if > 0
-    if (currentUsername && currentHighScore > 0) {
-      const key = currentUsername.toLowerCase();
-      const existing = map.get(key) || 0;
-      map.set(key, Math.max(existing, currentHighScore));
-    }
-
-    // Convert map to sorted LeaderboardEntry list
-    const combined: LeaderboardEntry[] = [];
-    map.forEach((score, lowerName) => {
-      const original =
-        localEntries.find((l) => l.username.toLowerCase() === lowerName)?.username ||
-        (currentUsername && currentUsername.toLowerCase() === lowerName ? currentUsername : lowerName);
-      combined.push({ username: original, highScore: score });
-    });
-
-    combined.sort((a, b) => b.highScore - a.highScore);
-    return combined.slice(0, 4);
-  }, [localEntries, currentUsername, currentHighScore]);
+  const entries = localEntries.slice(0, 4);
 
   return (
     <div id="leadboad">

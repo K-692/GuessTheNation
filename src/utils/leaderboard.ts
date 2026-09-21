@@ -1,14 +1,24 @@
 import { LeaderboardEntry } from "../Constants/defaultPlaces";
 
-export const LEADERBOARD_STORAGE_KEY = "mapi_leaderboard_v2";
-export const LEADERBOARD_UPDATED_EVENT = "mapi_leaderboard_updated";
+export const LEADERBOARD_STORAGE_KEY = "guessthenation_leaderboard_v1";
+export const LEADERBOARD_UPDATED_EVENT = "guessthenation_leaderboard_updated";
+const RESET_FLAG_KEY = "guessthenation_reset_done_v1";
 
-// One-time cleanup of legacy keys
+// Automatic reset of legacy testing/gameplay data
 try {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("mapi_leaderboard");
+    if (!localStorage.getItem(RESET_FLAG_KEY)) {
+      localStorage.removeItem("mapi_leaderboard");
+      localStorage.removeItem("mapi_leaderboard_v2");
+      localStorage.removeItem("mapi_high_score");
+      localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
+      localStorage.setItem(RESET_FLAG_KEY, "true");
+      console.log("[Leaderboard] Fresh reset completed.");
+    }
   }
-} catch {}
+} catch (e) {
+  console.warn("[Leaderboard] Initial reset check warning:", e);
+}
 
 /**
  * Retrieves the stored leaderboard entries from localStorage.
@@ -87,3 +97,8 @@ export const resetStoredLeaderboard = (): void => {
     console.warn("[Leaderboard] Error resetting leaderboard:", err);
   }
 };
+
+// Expose reset function globally on window for convenience
+if (typeof window !== "undefined") {
+  (window as any).resetLeaderboard = resetStoredLeaderboard;
+}
